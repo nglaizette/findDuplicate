@@ -12,6 +12,8 @@
 char *join_path(const char *base, const char *file){
 	size_t base_len = strlen(base);
 	size_t file_len = strlen(file);
+
+	// TODO: Avoid using malloc here
 	char *begin = malloc(base_len + file_len + PATH_SEP_LEN+ 1);
 	assert(begin != NULL);
 	
@@ -43,12 +45,14 @@ void print_files_recursively(const char *dir_path){
 		}*/
 		printf("Processing object: %s\n", ent->d_name);
 		if(ent->d_type == DT_DIR){
-			printf("dir: %s\n", ent->d_name);
-			char *child_path = join_path(dir_path, ent->d_name);
-			print_files_recursively(child_path);
-			free(child_path);
+			if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0){
+				printf("dir: %s\n", ent->d_name);
+				char *child_path = join_path(dir_path, ent->d_name);
+				print_files_recursively(child_path);
+				free(child_path);
+			}
 		} else {
-			printf("file: %s\n", ent->d_name);
+			printf("file: %s/%s\n", dir_path, ent->d_name);
 		}
 
 		ent = readdir(dir);
