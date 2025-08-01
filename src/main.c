@@ -29,7 +29,38 @@ char *join_path(const char *base, const char *file){
 	return begin;
 }
 
-void print_files_recursively(const char *dir_path){
+# define DIRS_CAP 1024
+
+typedef struct {
+	DIR *dirs[DIRS_CAP];
+	size_t dirs_size;
+} RECDIR;
+
+RECDIR *openrecdir(const char *dir_path){
+	(void) dir_path;
+	return NULL;
+}
+
+struct dirent *readrecdir(RECDIR *recdirp){
+	(void) recdirp;
+	return NULL;
+}
+
+int closerecdir(RECDIR *recdirp){
+	(void) recdirp;
+	return 0;
+}
+
+/*{
+	RECDIR *dir = openrecdir(".");
+	stuct dirent *end = readrecdir(dir);
+	while (ent != NULL){
+		file_action(ent->d_name);
+	}
+	closerecdir(dir);
+}*/
+
+void visit_files(const char *dir_path){
 	DIR *dir = opendir(dir_path);
 	if (dir == NULL){
 		fprintf(stderr, "ERROR: Could not open directory %s: %s\n",
@@ -48,7 +79,7 @@ void print_files_recursively(const char *dir_path){
 			if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0){
 				printf("dir: %s\n", ent->d_name);
 				char *child_path = join_path(dir_path, ent->d_name);
-				print_files_recursively(child_path);
+				visit_files(child_path);
 				free(child_path);
 			}
 		} else {
@@ -73,6 +104,6 @@ int main(int argc, char** argv)
 	(void) argc;
 	(void) argv;
 	const char *dir_path = ".";
-	print_files_recursively(dir_path);
+	visit_files(dir_path);
 	return 0;
 }
