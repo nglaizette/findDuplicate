@@ -48,6 +48,13 @@ int recdir_push(RECDIR * recdir, const char *dir_path){
 	return 0;
 }
 
+void recdir_pop(RECDIR * recdir){
+	assert(recdir->dirs_size > 0);
+	int ret = closedir(recdir->dirs[--recdir->dirs_size]);
+	assert(ret == 0);
+
+}
+
 RECDIR *openrecdir(const char *dir_path){
 	RECDIR *recdir = malloc(sizeof(RECDIR));
 	assert(recdir != NULL);
@@ -68,9 +75,35 @@ RECDIR *openrecdir(const char *dir_path){
 	return recdir;
 }
 
-struct dirent *readrecdir(RECDIR *recdirp){
-	(void) recdirp;
-	return NULL;
+struct dirent *readrecdir(RECDIR *recdirp){	
+try_again:
+	if(recdirp->dirs_size > 0){
+		DIR **top = & recdirp->dirs[recdirp->dirs_size-1];
+		
+		errno = 0;
+		struct dirent *entry = readdir(*top);
+		if(entry != NULL){
+			if(entry->d_type == DT_DIR){
+				if (strcmp(entry->d_name, ".") == 0 && strcmp(entry->d_name, "..")){
+					goto try_again;
+				} else {
+					recdir_push(recdirp, join_path(dir_path, entry->d_name));
+					goto try_again;
+				}
+			}
+			return entry;
+		} else {
+			if(errno != 0){
+				return NULL;
+			} else {
+				// TODO: pop directory
+				recdir_pop(recdirp);
+				goto try_again;
+			}
+		}
+	} else {
+		return NULL;
+	}
 }
 
 void closerecdir(RECDIR *recdirp){
