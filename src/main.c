@@ -29,30 +29,38 @@ char *join_path(const char *base, const char *file){
 	return begin;
 }
 
-# define DIRS_CAP 1024
+# define RECDIR_STACK_CAP 1024
 
 typedef struct {
-	DIR *dirs[DIRS_CAP];
-	size_t dirs_size;
+	DIR *dir;
+	char *path;
+} RECDIR_Frame;
+
+typedef struct {
+	RECDIR_Frame stack[RECDIR_STACK_CAP];
+	size_t stack_size;
 } RECDIR;
 
-int recdir_push(RECDIR * recdir, const char *dir_path){
+int recdir_push(RECDIR * recdir, char *path){
 	
-	assert(recdir->dirs_size < DIRS_CAP);
-	DIR **dir = &recdir->dirs[recdir->dirs_size];
-	*dir = opendir(dir_path);
-	if(*dir == NULL){
+	assert(recdir->stack_size < RECDIR_STACK_CAP);
+	RECDIR_Frame *top = &recdir->stack[recdir->stack_size - 1];
+	top->path = path;
+	top->dir = opendir(top->path);
+	if(top->dir == NULL){
+		free(top->path);
 		return -1;
 	}
-	recdir->dirs_size++;
+	recdir->stack_size++;
 	return 0;
 }
 
 void recdir_pop(RECDIR * recdir){
-	assert(recdir->dirs_size > 0);
-	int ret = closedir(recdir->dirs[--recdir->dirs_size]);
+	assert(recdir->stack_size > 0);
+	RECDIR_Frame *top = &recdir->stack[--recdir->stack_size];
+	int ret = closedir(top->dir);
 	assert(ret == 0);
-
+	free(top->path);
 }
 
 RECDIR *openrecdir(const char *dir_path){
@@ -61,14 +69,14 @@ RECDIR *openrecdir(const char *dir_path){
 	memset(recdir, 0, sizeof(RECDIR));
 
 	/*static_assert(DIRS_CAP > 0, "");
-	recdir->dirs[recdir->dirs_size] = opendir(dir_path);
-	if(recdir->dirs[recdir->dirs_size] == NULL){
+	recdir->dirs[recdir->stack_size] = opendir(dir_path);
+	if(recdir->dirs[recdir->stack_size] == NULL){
 		free(recdir);
 		return NULL;
 	}
-	recdir->dirs_size = 1;*/
+	recdir->stack_size = 1;*/
 
-	if(recdir_push(recdir, dir_path) < 0){
+	if(recdir_push(recdir, strdup(dir_path)) < 0){
 		free(recdir);
 		return NULL;
 	}
@@ -76,40 +84,38 @@ RECDIR *openrecdir(const char *dir_path){
 }
 
 struct dirent *readrecdir(RECDIR *recdirp){	
-try_again:
-	if(recdirp->dirs_size > 0){
-		DIR **top = & recdirp->dirs[recdirp->dirs_size-1];
+	while(recdirp->stack_size > 0){
+		RECDIR_Frame *top = &recdirp->stack[recdirp->stack_size-1];
 		
 		errno = 0;
-		struct dirent *entry = readdir(*top);
-		if(entry != NULL){
+		struct dirent *entry = readdir(top->dir);
+		if(entry){
 			if(entry->d_type == DT_DIR){
-				if (strcmp(entry->d_name, ".") == 0 && strcmp(entry->d_name, "..")){
-					goto try_again;
+				if (strcmp(entry->d_name, ".") == 0 && strcmp(entry->d_name, "..") == 0){
+					continue;
 				} else {
-					recdir_push(recdirp, join_path(dir_path, entry->d_name));
-					goto try_again;
+					recdir_push(recdirp, join_path(top->path, entry->d_name));
+					continue;
 				}
+			} else {
+				return entry;
 			}
-			return entry;
 		} else {
-			if(errno != 0){
+			if(errno){
 				return NULL;
 			} else {
 				// TODO: pop directory
 				recdir_pop(recdirp);
-				goto try_again;
+				continue;
 			}
 		}
-	} else {
-		return NULL;
 	}
+	return NULL;
 }
 
 void closerecdir(RECDIR *recdirp){
-	for (size_t i = 0; i < recdirp->dirs_size; ++i){
-		int ret = closedir(recdirp->dirs[i]);
-		assert(ret == 0);
+	while (recdirp->stack_size > 0){
+		recdir_pop(recdirp);
 	}
 	free(recdirp);
 }
