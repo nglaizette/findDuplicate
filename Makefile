@@ -1,5 +1,6 @@
 CFLAGS=-Wall -Wextra -std=c11 -pedantic -ggdb
 LIBS=
+SRC=src/main.c src/recdir.c
 
-findduplicate: src/main.c
-	$(CC) $(CFLAGS) -o findduplicate src/main.c $(LIBS)
+findduplicate: $(SRC)
+	$(CC) $(CFLAGS) -o findduplicate $(SRC) $(LIBS)
